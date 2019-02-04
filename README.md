@@ -5,9 +5,6 @@
 [![License](https://img.shields.io/cocoapods/l/otsdk_adobe.svg?style=flat)](https://cocoapods.org/pods/otsdk_adobe)
 [![Platform](https://img.shields.io/cocoapods/p/otsdk_adobe.svg?style=flat)](https://cocoapods.org/pods/otsdk_adobe)
 
-## Example
-
-To run the example project, clone the repo, and run `pod install` from the Example directory first.
 
 ## Requirements
 
