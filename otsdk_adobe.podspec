@@ -8,7 +8,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'otsdk_adobe'
-  s.version          = '1.0.0'
+  s.version          = '1.0.1'
   s.summary          = 'An Adobe Launch extension that will collect consent records for mobile users.'
 
 # This description is used to generate tags and improve search results.
@@ -22,7 +22,7 @@ An Adobe Launch extension that will collect consent records for mobile users. Th
                        DESC
 
   s.homepage         = 'https://github.com/kmjones87/OT_ADB_EXT_IOS'
-  s.license          = { :type => 'MIT', :file => 'LICENSE' }
+  s.license          = { :type => 'Apache', :file => 'LICENSE' }
   s.author           = 'OneTrust, LLC.'
   s.source           = { :git => 'https://github.com/kmjones87/OT_ADB_EXT_IOS.git', :tag => s.version.to_s }
 

@@ -20,16 +20,14 @@
 
 /*
  * TO-DO:
- *   - Fix custom identifier logic
- *  <option value="Random GUID">
- *  <option value="Supply Own">
+ *
  *
  */
 
 #import "otsdk_adobe.h"
 #import "otsdk_adobe_listener.h"
 
-@interface otsdk_adobe ()
+@interface otsdk_adobe () <NSURLSessionDelegate>
 
 @end
 
@@ -46,7 +44,7 @@
  * Return extension version
  */
 - (nullable NSString*) version {
-    return @"1.0.0";
+    return @"1.0.1";
 }
 
 /**
@@ -184,21 +182,72 @@
     // Set the request body
     [request setHTTPBody:jsonData];
     
-    ////////////////////////////////////////////////////////////////////////////
-    /////  Send the request to the server.
-    ////////////////////////////////////////////////////////////////////////////
-    NSURLSession *session = [NSURLSession sharedSession];
-    NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:request
-                                                completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-                                                    
-                                                    if (error) {
-                                                        NSLog(@"error: %@", error);
-                                                        return;
-                                                    }
-                                                    
-                                                }];
-    
-    [dataTask resume];
+    // Send request
+    NSURLSessionDownloadTask *task = [self.backgroundSession downloadTaskWithRequest:request];
+    if (task) {
+        NSString* payloadKey = [[NSUUID UUID] UUIDString];
+        [[NSUserDefaults standardUserDefaults] setObject:privacySetting forKey:payloadKey];
+        [task setTaskDescription:[NSString stringWithFormat:@"uploadToOneTrustServer:%@", payloadKey]];
+        [task resume];
+    }
 }
+
+#pragma mark - Retry Logic
+- (NSURLSession *)backgroundSession
+{
+    static NSURLSession *session = nil;
+    static dispatch_once_t onceTokenBackgroundSession;
+    dispatch_once(&onceTokenBackgroundSession, ^{
+        NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:@"com.OneTrust_Adobe.BackgroundSession"];
+        configuration.HTTPMaximumConnectionsPerHost = 2;
+        configuration.allowsCellularAccess = YES;
+        session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:nil];
+    });
+    
+    return session;
+    
+}
+
+-(void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didFinishDownloadingToURL:(NSURL *)location{
+    if (downloadTask.taskDescription) {
+        if ([downloadTask.taskDescription hasPrefix:@"uploadToOneTrustServer:"]) {
+            NSArray *parts = [[downloadTask taskDescription] componentsSeparatedByString:@":"];
+            NSString *payloadKey = [parts objectAtIndex:1];
+            [[NSUserDefaults standardUserDefaults] removeObjectForKey:payloadKey];
+            // clear the retry
+            [[NSUserDefaults standardUserDefaults] setInteger:0 forKey:@"OT_retryCounter"];
+            NSLog(@"[OT-ADOBE] Successfully saved to OneTrust");
+        }
+    }
+}
+
+-(NSString *)validatePath:(NSString *)proposedPath{
+    return proposedPath;
+}
+
+-(NSURL *)validateURL:(NSURL *)proposedURL{
+    return proposedURL;
+}
+
+
+-(void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error{
+    if (error != nil) {
+        if (task.taskDescription) {
+            if ([task.taskDescription hasPrefix:@"uploadToOneTrustServer:"]) {
+                NSArray *parts = [[task taskDescription] componentsSeparatedByString:@":"];
+                NSString *payloadKey = [parts objectAtIndex:1];
+                NSDictionary *payload = [[NSUserDefaults standardUserDefaults] objectForKey:payloadKey];
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(20 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    NSInteger OT_retryCounter = [[NSUserDefaults standardUserDefaults] integerForKey:@"OT_retryCounter"]+1;
+                    [[NSUserDefaults standardUserDefaults] setInteger:OT_retryCounter forKey:@"OT_retryCounter"];
+                    if(OT_retryCounter <= 3){
+                        [self uploadToOneTrustServer:payload];
+                    }
+                });
+            }
+        }
+    }
+}
+
 
 @end
